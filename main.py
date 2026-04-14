@@ -90,12 +90,12 @@ def obter_totais_por_fanout(spreadsheet_id, nome_aba, intervalo):
 
     header_row_index = -1
     for i, row in enumerate(dados):
-        if row and 'FANOUT' in row[0].strip().upper():
+        if row and 'SIGLA' in row[0].strip().upper():
             header_row_index = i
             break
     
     if header_row_index == -1:
-        return "Não foi possível encontrar a linha do cabeçalho 'FANOUT' no intervalo."
+        return "Não foi possível encontrar a linha do cabeçalho 'SIGLA' no intervalo."
 
     headers = dados[header_row_index]
     data = dados[header_row_index + 1:]
@@ -106,23 +106,23 @@ def obter_totais_por_fanout(spreadsheet_id, nome_aba, intervalo):
     df = pd.DataFrame(data, columns=headers)
     df.columns = [col.strip() for col in df.columns]
 
-    colunas_desejadas = ['FANOUT', 'PALLET/SCUTTLE', 'SACA', 'TOTAL', "Qtd's Pacotes", 'TO Packed']
+    colunas_desejadas = ['SIGLA','FANOUT', 'PALLET/SCUTTLE', 'SACA', 'TOTAL', "Qtd's Pacotes", 'TO Packed','Scuttle','Sacas']
     for col in colunas_desejadas:
         if col not in df.columns:
             return f"A coluna '{col}' não foi encontrada. Cabeçalhos lidos: {df.columns.tolist()}"
     
-    df = df.dropna(subset=['FANOUT'])
+    df = df.dropna(subset=['Sigla'])
 
-    colunas_numericas = ['PALLET/SCUTTLE', 'SACA', 'TOTAL', "Qtd's Pacotes", 'TO Packed']
+    colunas_numericas = ['SIGLA','FANOUT', 'PALLET/SCUTTLE', 'SACA', 'TOTAL', "Qtd's Pacotes", 'TO Packed','Scuttle','Sacas']
     for col in colunas_numericas:
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
 
     df = df[(df[colunas_numericas] != 0).any(axis=1)]
 
-    df['FANOUT'] = df['FANOUT'].str.strip()
-    ordem_fanout = df['FANOUT'].unique()
-    df['FANOUT'] = pd.Categorical(df['FANOUT'], categories=ordem_fanout, ordered=True)
-    df = df.sort_values('FANOUT').reset_index(drop=True)
+    df['SIGLA'] = df['SIGLA'].str.strip()
+    ordem_SIGLA = df['SIGLA'].unique()
+    df['SIGLA'] = pd.Categorical(df['SIGLA'], categories=ordem_SIGLA, ordered=True)
+    df = df.sort_values('SIGLA').reset_index(drop=True)
 
     return df
 
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     enviar_webhook_texto(mensagem_inicial)
     time.sleep(1)
 
-    resultado = obter_totais_por_fanout(SPREADSHEET_ID, NOME_ABA, INTERVALO)
+    resultado = obter_totais_por_sigla(SPREADSHEET_ID, NOME_ABA, INTERVALO)
 
     if isinstance(resultado, pd.DataFrame):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_img:
