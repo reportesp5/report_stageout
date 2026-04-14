@@ -1,0 +1,9 @@
+pandas
+gspread
+google-auth
+requests
+matplotlib
+Pillow
+numpy
+playwright
+datetime
