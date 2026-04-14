@@ -30,7 +30,7 @@ def aguardar_horario_correto():
         minutos_atuais = agora.minute
         
         # Verifica se é hora cheia (00) ou meia hora (30)
-        if minutos_atuais == 0 or minutos_atuais == 30:
+        if minutos_atuais == 0 or minutos_atuais == 10:
             print(f"✅ Horário correto detectado: {agora.strftime('%H:%M:%S')}")
             print("Iniciando execução do código...")
             break
