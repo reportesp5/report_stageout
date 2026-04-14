@@ -20,38 +20,6 @@ WEBHOOK_URL = "https://openapi.seatalk.io/webhook/group/uqHQVMpAQkqG1YEwJH8ogQ"
 SERVICE_ACCOUNT_FILE = 'hxh.json'
 
 
-def aguardar_horario_correto():
-    """
-    Verifica se é hora cheia (XX:00) ou meia hora (XX:30).
-    Se não for, aguarda 30 segundos e verifica novamente.
-    """
-    while True:
-        agora = datetime.now()
-        minutos_atuais = agora.minute
-        
-        # Verifica se é hora cheia (00) ou meia hora (30)
-        if minutos_atuais == 0 or minutos_atuais == 30:
-            print(f"✅ Horário correto detectado: {agora.strftime('%H:%M:%S')}")
-            print("Iniciando execução do código...")
-            break
-        else:
-            # Calcula quanto tempo falta para o próximo horário válido
-            if minutos_atuais < 30:
-                minutos_faltando = 30 - minutos_atuais
-                proximo_horario = f"{agora.hour:02d}:30"
-            else:
-                minutos_faltando = 60 - minutos_atuais
-                proxima_hora = (agora.hour + 1) % 24
-                proximo_horario = f"{proxima_hora:02d}:00"
-            
-            print(f"⏳ Horário atual: {agora.strftime('%H:%M:%S')}")
-            print(f"   Aguardando até {proximo_horario} (faltam {minutos_faltando} minutos)")
-            print(f"   Próxima verificação em 30 segundos...")
-            
-            # Aguarda 30 segundos antes de verificar novamente
-            time.sleep(30)
-
-
 def autenticar_google():
     creds = None
     try:
