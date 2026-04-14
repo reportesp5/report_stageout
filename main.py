@@ -10,12 +10,12 @@ import base64
 from PIL import Image
 import numpy as np
 from google.oauth2 import service_account
-from datetime import datetime  # Adicionar import datetime
+from datetime import datetime
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 SPREADSHEET_ID = '1hoXYiyuArtbd2pxMECteTFSE75LdgvA2Vlb6gPpGJ-g'
 NOME_ABA = 'Contagem'
-INTERVALO = 'C:H'
+INTERVALO = 'B:I' # ATUALIZADO: Da coluna B até a I
 WEBHOOK_URL = "https://openapi.seatalk.io/webhook/group/uqHQVMpAQkqG1YEwJH8ogQ"
 SERVICE_ACCOUNT_FILE = 'hxh.json'
 
@@ -66,8 +66,6 @@ def autenticar_google():
         print(f"Erro ao carregar credenciais: {e}")
         return None
 
-    # Não há mais 'token.pickle', 'flow' ou 'run_local_server'.
-    # A credencial 'creds' já está pronta para ser usada.
     return creds
 
 
@@ -90,7 +88,8 @@ def obter_totais_por_fanout(spreadsheet_id, nome_aba, intervalo):
 
     header_row_index = -1
     for i, row in enumerate(dados):
-        if row and 'SIGLA' in row[0].strip().upper():
+        # ATUALIZADO: Como começa na coluna B, o índice 0 agora é SIGLA
+        if row and 'SIGLA' in str(row[0]).strip().upper():
             header_row_index = i
             break
     
@@ -103,31 +102,44 @@ def obter_totais_por_fanout(spreadsheet_id, nome_aba, intervalo):
     if not data:
         return "Nenhum dado encontrado após o cabeçalho."
 
-    df = pd.DataFrame(data, columns=headers)
-    df.columns = [col.strip() for col in df.columns]
+    # Preenche linhas que possam estar mais curtas que os cabeçalhos para evitar erros no DataFrame
+    data = [row + [''] * (len(headers) - len(row)) for row in data]
 
-    colunas_desejadas = ['SIGLA','FANOUT', 'PALLET/SCUTTLE', 'SACA', 'TOTAL', "Qtd's Pacotes", 'TO Packed','Scuttle','Sacas']
+    df = pd.DataFrame(data, columns=headers)
+    df.columns = [str(col).strip() for col in df.columns]
+
+    # ATUALIZADO: Novos nomes das colunas conforme o intervalo B:I
+    colunas_desejadas = ['SIGLA', 'FANOUT', 'PALLET/SCUTTLE', 'SACA', 'TOTAL', "Qtd's Pacotes", 'Scuttle', 'Sacas']
     for col in colunas_desejadas:
         if col not in df.columns:
             return f"A coluna '{col}' não foi encontrada. Cabeçalhos lidos: {df.columns.tolist()}"
     
-    df = df.dropna(subset=['Sigla'])
+    # Manter apenas as colunas desejadas para evitar sujeira
+    df = df[colunas_desejadas]
+    
+    df = df.dropna(subset=['SIGLA', 'FANOUT'], how='all')
+    # Remover linhas onde a SIGLA ou FANOUT são strings vazias
+    df = df[(df['SIGLA'].str.strip() != '') | (df['FANOUT'].str.strip() != '')]
 
-    colunas_numericas = ['SIGLA','FANOUT', 'PALLET/SCUTTLE', 'SACA', 'TOTAL', "Qtd's Pacotes", 'TO Packed','Scuttle','Sacas']
+    # ATUALIZADO: Apenas as colunas que contém números
+    colunas_numericas = ['PALLET/SCUTTLE', 'SACA', 'TOTAL', "Qtd's Pacotes", 'Scuttle', 'Sacas']
     for col in colunas_numericas:
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
 
+    # Filtrar linhas onde todas as colunas numéricas são 0
     df = df[(df[colunas_numericas] != 0).any(axis=1)]
 
+    # Manter a ordem original baseada em como aparecem na planilha
     df['SIGLA'] = df['SIGLA'].str.strip()
-    ordem_SIGLA = df['SIGLA'].unique()
-    df['SIGLA'] = pd.Categorical(df['SIGLA'], categories=ordem_SIGLA, ordered=True)
+    ordem_sigla = df['SIGLA'].unique()
+    df['SIGLA'] = pd.Categorical(df['SIGLA'], categories=ordem_sigla, ordered=True)
     df = df.sort_values('SIGLA').reset_index(drop=True)
 
     return df
 
+
 def salvar_tabela_como_imagem(df, caminho):
-    fig, ax = plt.subplots(figsize=(14, len(df) * 0.5 + 1.5))
+    fig, ax = plt.subplots(figsize=(15, len(df) * 0.4 + 1.5)) # Levemente mais largo para acomodar B:I
     ax.axis('off')
 
     tabela = ax.table(
@@ -142,12 +154,12 @@ def salvar_tabela_como_imagem(df, caminho):
     tabela.set_fontsize(10)
     tabela.scale(1.2, 1.2)
 
-    # Ajustar largura das colunas: primeira mais larga, outras mais finas
+    # ATUALIZADO: Ajustar largura das colunas
     for (row, col), cell in tabela.get_celld().items():
-        if col == 0:
-            cell.set_width(0.2)
-        else:
-            cell.set_width(0.1)
+        if col == 1: # Índice 1 é o FANOUT (coluna mais larga na imagem)
+            cell.set_width(0.25)
+        else: # SIGLA e colunas numéricas ficam menores
+            cell.set_width(0.12)
 
     # Cabeçalho laranja
     for col in range(len(df.columns)):
@@ -171,6 +183,7 @@ def salvar_tabela_como_imagem(df, caminho):
         imagem_cortada = imagem.crop((x0, y0, x1, y1))
         imagem_cortada.save(caminho)
 
+
 def enviar_webhook_texto(mensagem):
     print("Enviando mensagem de texto ao webhook...")
     try:
@@ -189,6 +202,7 @@ def enviar_webhook_texto(mensagem):
         print("Mensagem enviada com sucesso.")
     except Exception as e:
         print(f"Erro ao enviar mensagem: {e}")
+
 
 def enviar_imagem_base64(caminho_imagem):
     print("Convertendo imagem para base64 e enviando ao SeaTalk...")
@@ -211,16 +225,15 @@ def enviar_imagem_base64(caminho_imagem):
     except Exception as e:
         print(f"Erro ao enviar imagem: {e}")
 
+
 if __name__ == "__main__":
-    # NOVA VALIDAÇÃO DE HORÁRIO
     aguardar_horario_correto()
     
-    # CÓDIGO ORIGINAL CONTINUA AQUI
     mensagem_inicial = "Segue o piso da expedição:"
     enviar_webhook_texto(mensagem_inicial)
     time.sleep(1)
 
-    resultado = obter_totais_por_sigla(SPREADSHEET_ID, NOME_ABA, INTERVALO)
+    resultado = obter_totais_por_fanout(SPREADSHEET_ID, NOME_ABA, INTERVALO)
 
     if isinstance(resultado, pd.DataFrame):
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_img:
