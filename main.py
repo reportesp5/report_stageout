@@ -193,9 +193,6 @@ def enviar_imagem_base64(caminho_imagem):
     except Exception as e:
         print(f"Erro ao enviar imagem: {e}")
 
-
-if __name__ == "__main__":
-    aguardar_horario_correto()
     
     mensagem_inicial = "Segue o piso da expedição:"
     enviar_webhook_texto(mensagem_inicial)
