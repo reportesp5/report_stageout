@@ -229,17 +229,28 @@ def enviar_imagem_base64(caminho_imagem):
 if __name__ == "__main__":
     aguardar_horario_correto()
     
-    mensagem_inicial = "Segue o piso da expedição:"
-    enviar_webhook_texto(mensagem_inicial)
-    time.sleep(1)
-
+    # 1. Primeiro, tentamos obter e processar os dados da planilha
     resultado = obter_totais_por_fanout(SPREADSHEET_ID, NOME_ABA, INTERVALO)
 
+    # 2. Verificamos se o retorno é de fato um DataFrame
     if isinstance(resultado, pd.DataFrame):
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_img:
-            salvar_tabela_como_imagem(resultado, temp_img.name)
-            enviar_imagem_base64(temp_img.name)
-            os.remove(temp_img.name)
+        
+        # 3. Trava de segurança: Verifica se o DataFrame não está vazio após os filtros
+        if resultado.empty:
+            print("O DataFrame está vazio (nenhum dado válido encontrado). A rotina será encerrada sem enviar mensagens ao SeaTalk.")
+        else:
+            # 4. Só enviamos o texto inicial se tivermos certeza de que há dados para a imagem
+            mensagem_inicial = "Segue o piso da expedição:"
+            enviar_webhook_texto(mensagem_inicial)
+            time.sleep(1)
+            
+            # 5. Gera e envia a imagem
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_img:
+                salvar_tabela_como_imagem(resultado, temp_img.name)
+                enviar_imagem_base64(temp_img.name)
+                os.remove(temp_img.name)
+                
     else:
+        # Cai aqui se a função obter_totais_por_fanout retornar uma string de erro
         print("Erro ao obter dados:", resultado)
-        enviar_webhook_texto(f"Erro ao gerar relatório:\n{resultado}")
+        enviar_webhook_texto(f"Erro ao gerar relatório da expedição:\n{resultado}")
