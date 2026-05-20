@@ -2,25 +2,17 @@ name: Piso Exp SP5
 on:
   workflow_dispatch:
 
+# Adiciona o workflow a um grupo de concorrência.
+# Apenas uma execução deste grupo rodará por vez.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false # Garante que a nova execução fique em espera (fila) em vez de cancelar a atual
+
 jobs:
   run-script:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Verificar se já existe execução em andamento
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Conta quantas execuções deste workflow estão "em andamento"
-          RUNNING_RUNS=$(gh run list --workflow "${{ github.workflow }}" --status in_progress --json databaseId --jq '. | length')
-          
-          # Se for maior que 1 (contando com esta própria execução), cancela a atual
-          if [ "$RUNNING_RUNS" -gt 1 ]; then
-            echo "Já existe uma execução deste script em andamento. Cancelando esta nova..."
-            gh run cancel ${{ github.run_id }}
-            exit 1 # Força a interrupção imediata do passo atual
-          fi
-
       - name: Checkout do código
         uses: actions/checkout@v3
         
