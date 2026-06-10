@@ -15,7 +15,7 @@ from datetime import datetime
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 SPREADSHEET_ID = '1hoXYiyuArtbd2pxMECteTFSE75LdgvA2Vlb6gPpGJ-g'
 NOME_ABA = 'Contagem'
-INTERVALO = 'B:I' # ATUALIZADO: Da coluna B até a I
+INTERVALO = 'B:I'
 WEBHOOK_URL = "https://openapi.seatalk.io/webhook/group/uqHQVMpAQkqG1YEwJH8ogQ"
 SERVICE_ACCOUNT_FILE = 'hxh.json'
 
@@ -88,7 +88,6 @@ def obter_totais_por_fanout(spreadsheet_id, nome_aba, intervalo):
 
     header_row_index = -1
     for i, row in enumerate(dados):
-        # ATUALIZADO: Como começa na coluna B, o índice 0 agora é SIGLA
         if row and 'SIGLA' in str(row[0]).strip().upper():
             header_row_index = i
             break
@@ -108,7 +107,6 @@ def obter_totais_por_fanout(spreadsheet_id, nome_aba, intervalo):
     df = pd.DataFrame(data, columns=headers)
     df.columns = [str(col).strip() for col in df.columns]
 
-    # ATUALIZADO: Novos nomes das colunas conforme o intervalo B:I
     colunas_desejadas = ['SIGLA', 'FANOUT', 'PALLET/SCUTTLE', 'SACA', 'TOTAL', "Qtd's Pacotes", 'Scuttle', 'Sacas']
     for col in colunas_desejadas:
         if col not in df.columns:
@@ -121,7 +119,6 @@ def obter_totais_por_fanout(spreadsheet_id, nome_aba, intervalo):
     # Remover linhas onde a SIGLA ou FANOUT são strings vazias
     df = df[(df['SIGLA'].str.strip() != '') | (df['FANOUT'].str.strip() != '')]
 
-    # ATUALIZADO: Apenas as colunas que contém números
     colunas_numericas = ['PALLET/SCUTTLE', 'SACA', 'TOTAL', "Qtd's Pacotes", 'Scuttle', 'Sacas']
     for col in colunas_numericas:
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
@@ -139,7 +136,7 @@ def obter_totais_por_fanout(spreadsheet_id, nome_aba, intervalo):
 
 
 def salvar_tabela_como_imagem(df, caminho):
-    fig, ax = plt.subplots(figsize=(15, len(df) * 0.4 + 1.5)) # Levemente mais largo para acomodar B:I
+    fig, ax = plt.subplots(figsize=(15, len(df) * 0.4 + 1.5))
     ax.axis('off')
 
     tabela = ax.table(
@@ -154,11 +151,10 @@ def salvar_tabela_como_imagem(df, caminho):
     tabela.set_fontsize(10)
     tabela.scale(1.2, 1.2)
 
-    # ATUALIZADO: Ajustar largura das colunas
     for (row, col), cell in tabela.get_celld().items():
-        if col == 1: # Índice 1 é o FANOUT (coluna mais larga na imagem)
+        if col == 1: 
             cell.set_width(0.25)
-        else: # SIGLA e colunas numéricas ficam menores
+        else: 
             cell.set_width(0.12)
 
     # Cabeçalho laranja
@@ -232,25 +228,31 @@ if __name__ == "__main__":
     # 1. Primeiro, tentamos obter e processar os dados da planilha
     resultado = obter_totais_por_fanout(SPREADSHEET_ID, NOME_ABA, INTERVALO)
 
-    # 2. Verificamos se o retorno é de fato um DataFrame
-    if isinstance(resultado, pd.DataFrame):
-        
-        # 3. Trava de segurança: Verifica se o DataFrame não está vazio após os filtros
-        if resultado.empty:
-            print("O DataFrame está vazio (nenhum dado válido encontrado). A rotina será encerrada sem enviar mensagens ao SeaTalk.")
-        else:
-            # 4. Só enviamos o texto inicial se tivermos certeza de que há dados para a imagem
-            mensagem_inicial = "Segue o piso da expedição:"
-            enviar_webhook_texto(mensagem_inicial)
-            time.sleep(1)
-            
-            # 5. Gera e envia a imagem
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_img:
-                salvar_tabela_como_imagem(resultado, temp_img.name)
-                enviar_imagem_base64(temp_img.name)
-                os.remove(temp_img.name)
-                
+    # NOVO: Verifica se o minuto atual está na janela restrita (entre xx:07 e xx:12)
+    minuto_atual = datetime.now().minute
+    if 7 <= minuto_atual <= 12:
+        print(f"🚫 Ação bloqueada: O horário atual ({datetime.now().strftime('%H:%M:%S')}) cai na janela de restrição (xx:07 a xx:12).")
+        print("Nenhuma mensagem será enviada ao webhook nesta execução.")
     else:
-        # Cai aqui se a função obter_totais_por_fanout retornar uma string de erro
-        print("Erro ao obter dados:", resultado)
-        enviar_webhook_texto(f"Erro ao gerar relatório da expedição:\n{resultado}")
+        # 2. Verificamos se o retorno é de fato um DataFrame
+        if isinstance(resultado, pd.DataFrame):
+            
+            # 3. Trava de segurança: Verifica se o DataFrame não está vazio após os filtros
+            if resultado.empty:
+                print("O DataFrame está vazio (nenhum dado válido encontrado). A rotina será encerrada sem enviar mensagens ao SeaTalk.")
+            else:
+                # 4. Só enviamos o texto inicial se tivermos certeza de que há dados para a imagem
+                mensagem_inicial = "Segue o piso da expedição:"
+                enviar_webhook_texto(mensagem_inicial)
+                time.sleep(1)
+                
+                # 5. Gera e envia a imagem
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_img:
+                    salvar_tabela_como_imagem(resultado, temp_img.name)
+                    enviar_imagem_base64(temp_img.name)
+                    os.remove(temp_img.name)
+                    
+        else:
+            # Cai aqui se a função obter_totais_por_fanout retornar uma string de erro
+            print("Erro ao obter dados:", resultado)
+            enviar_webhook_texto(f"Erro ao gerar relatório da expedição:\n{resultado}")
